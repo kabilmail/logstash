@@ -599,6 +599,36 @@ public final class CompiledPipelineTest extends RubyEnvTestCase {
     }
 
     @Test
+    @SuppressWarnings({"unchecked"})
+    public void testReuseCompiledClasses() throws IOException, InvalidIRException {
+        final FixedPluginFactory pluginFactory = new FixedPluginFactory(
+                () -> null,
+                () -> IDENTITY_FILTER,
+                mockOutputSupplier()
+        );
+
+        final PipelineIR baselinePipeline = ConfigCompiler.configToPipelineIR(
+                IRHelpers.toSourceWithMetadataFromPath("org/logstash/config/ir/cache/pipeline_reuse_baseline.conf"),
+                false);
+        final CompiledPipeline cBaselinePipeline = new CompiledPipeline(baselinePipeline, pluginFactory);
+
+        final PipelineIR pipelineTwiceAsBig = ConfigCompiler.configToPipelineIR(
+                IRHelpers.toSourceWithMetadataFromPath("org/logstash/config/ir/cache/pipeline_reuse_test.conf"),
+                false);
+        final CompiledPipeline cPipelineTwiceAsBig = new CompiledPipeline(pipelineTwiceAsBig, pluginFactory);
+
+        // test: compiling a much bigger pipeline and assessing only a marginal number of pipelines is created
+        ComputeStepSyntaxElement.cleanClassCache();
+        cBaselinePipeline.buildExecution();
+        final int cachedBefore = ComputeStepSyntaxElement.classCacheSize();
+        cPipelineTwiceAsBig.buildExecution();
+        final int cachedAfter = ComputeStepSyntaxElement.classCacheSize();
+
+        final String message = String.format("unexpected cache size, cachedAfter: %d, cachedBefore: %d", cachedAfter, cachedBefore);
+        assertEquals(message, 2, cachedAfter - cachedBefore);
+    }
+
+    @Test
     @SuppressWarnings({"unchecked", "rawtypes"})
     public void compilerBenchmark() throws Exception {
         final PipelineIR baselinePipelineIR = createPipelineIR(200);
@@ -615,12 +645,12 @@ public final class CompiledPipelineTest extends RubyEnvTestCase {
 
         final CompiledPipeline testCompiledPipeline = new CompiledPipeline(testPipelineIR, pluginFactory);
 
-        final long compilationBaseline = time(ChronoUnit.SECONDS, () -> {
+        final long compilationBaseline = time(ChronoUnit.MILLIS, () -> {
             final CompiledPipeline.CompiledExecution compiledExecution = baselineCompiledPipeline.buildExecution();
             compiledExecution.compute(RubyUtil.RUBY.newArray(testEvent), false, false);
         });
 
-        final long compilationTest = time(ChronoUnit.SECONDS, () -> {
+        final long compilationTest = time(ChronoUnit.MILLIS, () -> {
             final CompiledPipeline.CompiledExecution compiledExecution = testCompiledPipeline.buildExecution();
             compiledExecution.compute(RubyUtil.RUBY.newArray(testEvent), false, false);
         });

@@ -101,7 +101,7 @@ public final class ComputeStepSyntaxElement<T extends Dataset> {
     public static void cleanClassCache() {
         synchronized (COMPILER) {
             CLASS_CACHE.clear();
-            COMPILER.setParentClassLoader(null);
+            COMPILER.get().setParentClassLoader(null);
         }
     }
 
